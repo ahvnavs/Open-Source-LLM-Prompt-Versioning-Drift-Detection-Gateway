@@ -16,20 +16,22 @@ paths:
       operationId: createPrompt
       tags:
         - Ingestion
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePromptRequest'
+              $ref: "#/components/schemas/CreatePromptRequest"
       responses:
-        '201':
+        "201":
           description: Prompt successfully created and hashed.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PromptResponse'
-        '409':
+                $ref: "#/components/schemas/PromptResponse"
+        "409":
           description: Conflict. Prompt ID already exists (Immutability violation).
   /v1/prompts/execute:
     post:
@@ -38,24 +40,28 @@ paths:
       operationId: executePrompt
       tags:
         - Execution
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExecuteRequest'
+              $ref: "#/components/schemas/ExecuteRequest"
       responses:
-        '200':
+        "200":
           description: Successful execution and LLM response.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExecuteResponse'
-        '400':
+                $ref: "#/components/schemas/ExecuteResponse"
+        "400":
           description: Bad Request (e.g., missing required variables for the prompt template).
-        '404':
+        "403":
+          description: Forbidden (Cross-tenant access violation).
+        "404":
           description: Prompt ID not found in the remote cache or database.
-        '502':
+        "502":
           description: Bad Gateway (Upstream LLM provider failure or timeout).
   /metrics:
     get:
@@ -64,13 +70,18 @@ paths:
       tags:
         - Observability
       responses:
-        '200':
+        "200":
           description: Raw time-series text data.
           content:
             text/plain:
               schema:
                 type: string
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
   schemas:
     CreatePromptRequest:
       type: object
