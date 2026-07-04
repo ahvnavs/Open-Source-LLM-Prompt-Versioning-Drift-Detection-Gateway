@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict
 from typing import Dict, Optional
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
 
 # ==========================================
 # 1. 12-FACTOR CONFIGURATION
@@ -108,6 +110,30 @@ def on_startup():
     db.close()
 
 # ==========================================
+# 4.5. ENTERPRISE OBSERVABILITY (Prometheus)
+# ==========================================
+REQUEST_COUNT = Counter(
+    'gateway_llm_requests_total',
+    'Total LLM requests processed',
+    ['model_used', 'status']
+)
+TOKEN_COUNT = Counter(
+    'gateway_llm_token_usage_total',
+    'Total tokens consumed for billing',
+    ['model_used']
+)
+REQUEST_LATENCY = Histogram(
+    'gateway_llm_request_latency_seconds',
+    'LLM request latency',
+    ['model_used']
+)
+
+@app.get("/metrics")
+async def metrics():
+    """Exposes real-time telemetry to the Prometheus scraper."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+# ==========================================
 # 5. CORE ROUTING & EXECUTION
 # ==========================================
 @app.post("/v1/prompts/execute", response_model=ExecuteResponse)
@@ -179,7 +205,13 @@ async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db))
         )
 
     # Step E: Telemetry & Observability Calculation
-    latency = int((time.time() - start_time) * 1000)
+    latency_seconds = time.time() - start_time
+    latency_ms = int(latency_seconds * 1000)
+
+    # Inject into Prometheus Time-Series Database
+    REQUEST_COUNT.labels(model_used=active_model, status="success").inc()
+    TOKEN_COUNT.labels(model_used=active_model).inc(actual_tokens)
+    REQUEST_LATENCY.labels(model_used=active_model).observe(latency_seconds)
 
     return ExecuteResponse(
         success=True,
@@ -187,7 +219,7 @@ async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db))
         llm_response=actual_response_text,
         telemetry=Telemetry(
             token_usage=actual_tokens,
-            latency_ms=latency,
+            latency_ms=latency_ms,
             model_used=active_model
         )
     )
