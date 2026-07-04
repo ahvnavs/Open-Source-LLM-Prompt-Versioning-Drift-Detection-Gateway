@@ -1,0 +1,87 @@
+openapi: 3.0.3
+info:
+  title: Prompt Drift Gateway API
+  description: The centralized microservice for versioning, proxying, and testing LLM prompts. Decoupling stateless business logic from AI execution.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local Sandbox Environment
+  - url: https://api.yourdomain.com
+    description: Production Enterprise SaaS
+paths:
+  /v1/prompts/execute:
+    post:
+      summary: Execute a versioned prompt
+      description: Injects variables into a mathematically versioned prompt and proxies the request to the designated LLM endpoint.
+      operationId: executePrompt
+      tags:
+        - Execution
+      requestBody:
+        description: Payload containing the prompt identifier and dynamic variables for injection.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteRequest'
+      responses:
+        '200':
+          description: Successful execution and LLM response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecuteResponse'
+        '400':
+          description: Bad Request (e.g., missing required variables for the prompt template).
+        '404':
+          description: Prompt ID not found in the remote cache or database.
+        '502':
+          description: Bad Gateway (Upstream LLM provider failure or timeout).
+components:
+  schemas:
+    ExecuteRequest:
+      type: object
+      required:
+        - prompt_id
+      properties:
+        prompt_id:
+          type: string
+          description: The unique identifier or cryptographic hash of the prompt.
+          example: "auth-system-onboarding-v2"
+        variables:
+          type: object
+          description: Key-value pairs to be injected into the prompt template.
+          additionalProperties:
+            type: string
+          example:
+            user_name: "Alice"
+            role: "Administrator"
+        model_override:
+          type: string
+          description: Optional. Temporarily override the default LLM for A/B testing (e.g., test Gemma against GPT-4).
+          example: "gemma-7b-it"
+    ExecuteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        executed_prompt:
+          type: string
+          description: The final, hydrated string sent to the LLM.
+          example: "You are a helpful assistant. Greet Alice, who is an Administrator."
+        llm_response:
+          type: string
+          description: The raw text response from the AI model.
+          example: "Hello Alice! As an Administrator, how can I assist you today?"
+        telemetry:
+          type: object
+          properties:
+            token_usage:
+              type: integer
+              example: 42
+            latency_ms:
+              type: integer
+              example: 850
+            model_used:
+              type: string
+              example: "gemma-7b-it"
