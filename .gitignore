@@ -59,3 +59,9 @@ docker-compose.override.yml
 .idea/
 *.swp
 *.swo
+
+# Local Database State
+*.db
+*.sqlite
+*.sqlite3
+prompt_state.db

@@ -9,6 +9,28 @@ servers:
   - url: https://api.yourdomain.com
     description: Production Enterprise SaaS
 paths:
+  /v1/prompts:
+    post:
+      summary: Create a versioned prompt
+      description: Ingests a new prompt, assigns a cryptographic SHA-256 hash, and stores it immutably.
+      operationId: createPrompt
+      tags:
+        - Ingestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '201':
+          description: Prompt successfully created and hashed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptResponse'
+        '409':
+          description: Conflict. Prompt ID already exists (Immutability violation).
   /v1/prompts/execute:
     post:
       summary: Execute a versioned prompt
@@ -17,7 +39,6 @@ paths:
       tags:
         - Execution
       requestBody:
-        description: Payload containing the prompt identifier and dynamic variables for injection.
         required: true
         content:
           application/json:
@@ -36,8 +57,43 @@ paths:
           description: Prompt ID not found in the remote cache or database.
         '502':
           description: Bad Gateway (Upstream LLM provider failure or timeout).
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Exposes real-time telemetry to the Prometheus scraper.
+      tags:
+        - Observability
+      responses:
+        '200':
+          description: Raw time-series text data.
+          content:
+            text/plain:
+              schema:
+                type: string
 components:
   schemas:
+    CreatePromptRequest:
+      type: object
+      required:
+        - prompt_id
+        - template_text
+      properties:
+        prompt_id:
+          type: string
+          example: "customer-support-v1"
+        template_text:
+          type: string
+          example: "You are a support agent. Answer {user_name}'s question."
+    PromptResponse:
+      type: object
+      properties:
+        prompt_id:
+          type: string
+        version_hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     ExecuteRequest:
       type: object
       required:
@@ -45,43 +101,31 @@ components:
       properties:
         prompt_id:
           type: string
-          description: The unique identifier or cryptographic hash of the prompt.
-          example: "auth-system-onboarding-v2"
+          example: "customer-support-v1"
         variables:
           type: object
-          description: Key-value pairs to be injected into the prompt template.
           additionalProperties:
             type: string
           example:
             user_name: "Alice"
-            role: "Administrator"
         model_override:
           type: string
-          description: Optional. Temporarily override the default LLM for A/B testing (e.g., test Gemma against GPT-4).
           example: "gemma-7b-it"
     ExecuteResponse:
       type: object
       properties:
         success:
           type: boolean
-          example: true
         executed_prompt:
           type: string
-          description: The final, hydrated string sent to the LLM.
-          example: "You are a helpful assistant. Greet Alice, who is an Administrator."
         llm_response:
           type: string
-          description: The raw text response from the AI model.
-          example: "Hello Alice! As an Administrator, how can I assist you today?"
         telemetry:
           type: object
           properties:
             token_usage:
               type: integer
-              example: 42
             latency_ms:
               type: integer
-              example: 850
             model_used:
               type: string
-              example: "gemma-7b-it"
