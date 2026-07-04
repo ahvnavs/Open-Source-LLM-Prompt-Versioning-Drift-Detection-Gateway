@@ -65,3 +65,10 @@ docker-compose.override.yml
 *.sqlite
 *.sqlite3
 prompt_state.db
+
+# Next.js & Node Artifacts
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/build/
+dashboard/.env*.local

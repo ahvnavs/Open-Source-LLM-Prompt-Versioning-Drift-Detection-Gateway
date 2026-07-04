@@ -4,18 +4,31 @@ services:
     build: .
     ports:
       - "8080:8080"
-    env_file: # <-- NEW: Load secrets securely
-      - .env # <-- NEW
+    env_file:
+      - .env
     environment:
       - DEFAULT_LLM_MODEL=gpt-4-turbo
     volumes:
       - ./app:/usr/src/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+
   prometheus:
     image: prom/prometheus:v2.51.0
     ports:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - gateway
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboard:/usr/src/app
+      - /usr/src/app/node_modules # Prevents local node_modules from overwriting container
     depends_on:
       - gateway

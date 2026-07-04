@@ -1,0 +1,19 @@
+# Use a lightweight Node.js base image
+FROM node:20-alpine
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Copy dependency files and install
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# The source code will be mounted via volumes in docker-compose,
+# but we copy it here as a fallback
+COPY . .
+
+# Expose the Next.js port
+EXPOSE 3000
+
+# Start the Next.js development server
+CMD ["npm", "run", "dev"]
