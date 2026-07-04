@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
+from fastapi.security import APIKeyHeader
 
 # ==========================================
 # 1. 12-FACTOR CONFIGURATION
@@ -47,6 +48,32 @@ def get_db():
         db.close()
 
 # ==========================================
+# 2.5. ENTERPRISE SECURITY BOUNDARY
+# ==========================================
+# Extracts the 'X-API-Key' header from incoming requests
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_current_organization(api_key: str = Depends(api_key_header), db: Session = Depends(get_db)):
+    """Validates the incoming API key against the database."""
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing 'X-API-Key' header. Enterprise Gateway access denied."
+        )
+
+    # Hash the incoming key to compare against our secure storage
+    incoming_hash = hashlib.sha256(api_key.encode('utf-8')).hexdigest()
+    org_record = db.query(OrganizationKey).filter(OrganizationKey.api_key_hash == incoming_hash).first()
+
+    if not org_record:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API Key."
+        )
+
+    return org_record
+
+# ==========================================
 # 3. OPENAPI SCHEMAS (Pydantic)
 # ==========================================
 class ExecuteRequest(BaseModel):
@@ -77,6 +104,16 @@ class PromptResponse(BaseModel):
     version_hash: str
     created_at: datetime.datetime
 
+class OrganizationKey(Base):
+    """SQLAlchemy model for tracking Enterprise SaaS clients."""
+    __tablename__ = "organization_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_name = Column(String, unique=True, index=True, nullable=False)
+    api_key_hash = Column(String, unique=True, index=True, nullable=False)
+    tier = Column(String, default="standard") # 'standard' or 'enterprise'
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_API_BASE_URL = os.getenv("LLM_API_BASE_URL", "https://api.openai.com/v1/chat/completions")
 
@@ -91,14 +128,12 @@ app = FastAPI(
 
 @app.on_event("startup")
 def on_startup():
-    """
-    Automated infrastructure initialization.
-    Creates tables if they don't exist and seeds the database for local testing.
-    """
+    """Automated infrastructure initialization."""
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
-    # Seed the test prompt if the database is empty
+
+    # Existing Prompt Seed...
     if not db.query(PromptRecord).filter(PromptRecord.prompt_id == "auth-system-onboarding-v2").first():
         seed_prompt = PromptRecord(
             prompt_id="auth-system-onboarding-v2",
@@ -106,7 +141,19 @@ def on_startup():
             version_hash="sha256-mock-hash-123"
         )
         db.add(seed_prompt)
-        db.commit()
+
+    # NEW: Enterprise Key Seed
+    # For local testing, we assume the raw key is "sk-test-enterprise-key"
+    mock_key_hash = hashlib.sha256("sk-test-enterprise-key".encode('utf-8')).hexdigest()
+    if not db.query(OrganizationKey).filter(OrganizationKey.organization_name == "Acme Corp").first():
+        seed_org = OrganizationKey(
+            organization_name="Acme Corp",
+            api_key_hash=mock_key_hash,
+            tier="enterprise"
+        )
+        db.add(seed_org)
+
+    db.commit()
     db.close()
 
 # ==========================================
@@ -115,12 +162,12 @@ def on_startup():
 REQUEST_COUNT = Counter(
     'gateway_llm_requests_total',
     'Total LLM requests processed',
-    ['model_used', 'status']
+    ['model_used', 'status', 'org_name']
 )
 TOKEN_COUNT = Counter(
     'gateway_llm_token_usage_total',
     'Total tokens consumed for billing',
-    ['model_used']
+    ['model_used', 'org_name']
 )
 REQUEST_LATENCY = Histogram(
     'gateway_llm_request_latency_seconds',
@@ -137,7 +184,10 @@ async def metrics():
 # 5. CORE ROUTING & EXECUTION
 # ==========================================
 @app.post("/v1/prompts/execute", response_model=ExecuteResponse)
-async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db)):
+async def execute_prompt(
+    request: ExecuteRequest,
+    db: Session = Depends(get_db),
+    organization: OrganizationKey = Depends(get_current_organization)):
     """
     Executes a versioned prompt by fetching the template, injecting variables,
     and proxying the request asynchronously to the live LLM provider.
@@ -209,8 +259,8 @@ async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db))
     latency_ms = int(latency_seconds * 1000)
 
     # Inject into Prometheus Time-Series Database
-    REQUEST_COUNT.labels(model_used=active_model, status="success").inc()
-    TOKEN_COUNT.labels(model_used=active_model).inc(actual_tokens)
+    REQUEST_COUNT.labels(model_used=active_model, status="success", org_name=organization.organization_name).inc()
+    TOKEN_COUNT.labels(model_used=active_model, org_name=organization.organization_name).inc(actual_tokens)
     REQUEST_LATENCY.labels(model_used=active_model).observe(latency_seconds)
 
     return ExecuteResponse(
