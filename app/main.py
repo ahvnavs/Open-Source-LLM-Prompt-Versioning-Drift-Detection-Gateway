@@ -12,30 +12,30 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from fastapi.responses import Response
 from fastapi.security import APIKeyHeader
 
-# ==========================================
-# 1. 12-FACTOR CONFIGURATION
-# ==========================================
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./prompt_state.db")
-DEFAULT_MODEL = os.getenv("DEFAULT_LLM_MODEL", "gpt-4-turbo")
+DEFAULT_MODEL = os.getenv("DEFAULT_LLM_MODEL", "llama3.1")
 
-# ==========================================
-# 2. DATABASE STATE MANAGEMENT
-# ==========================================
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class PromptRecord(Base):
-    """SQLAlchemy model for storing versioned prompts immutably."""
     __tablename__ = "prompts"
-
     id = Column(Integer, primary_key=True, index=True)
-    organization_name = Column(String, index=True, nullable=False) # Binds prompt to tenant
+    organization_name = Column(String, index=True, nullable=False)
     prompt_id = Column(String, unique=True, index=True, nullable=False)
     template_text = Column(Text, nullable=False)
     version_hash = Column(String, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class OrganizationKey(Base):
+    __tablename__ = "organization_keys"
+    id = Column(Integer, primary_key=True, index=True)
+    organization_name = Column(String, unique=True, index=True, nullable=False)
+    api_key_hash = Column(String, unique=True, index=True, nullable=False)
+    tier = Column(String, default="standard")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 def get_db():
     db = SessionLocal()
@@ -44,33 +44,19 @@ def get_db():
     finally:
         db.close()
 
-# ==========================================
-# 2.5. ENTERPRISE SECURITY BOUNDARY
-# ==========================================
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_current_organization(api_key: str = Depends(api_key_header), db: Session = Depends(get_db)):
-    """Validates the incoming API key against the database."""
     if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'X-API-Key' header. Enterprise Gateway access denied."
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing 'X-API-Key' header. Enterprise Gateway access denied.")
 
     incoming_hash = hashlib.sha256(api_key.encode('utf-8')).hexdigest()
     org_record = db.query(OrganizationKey).filter(OrganizationKey.api_key_hash == incoming_hash).first()
 
     if not org_record:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid API Key."
-        )
-
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key.")
     return org_record
 
-# ==========================================
-# 3. OPENAPI SCHEMAS (Pydantic)
-# ==========================================
 class ExecuteRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     prompt_id: str
@@ -99,203 +85,92 @@ class PromptResponse(BaseModel):
     version_hash: str
     created_at: datetime.datetime
 
-class OrganizationKey(Base):
-    """SQLAlchemy model for tracking Enterprise SaaS clients."""
-    __tablename__ = "organization_keys"
-
-    id = Column(Integer, primary_key=True, index=True)
-    organization_name = Column(String, unique=True, index=True, nullable=False)
-    api_key_hash = Column(String, unique=True, index=True, nullable=False)
-    tier = Column(String, default="standard")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_API_BASE_URL = os.getenv("LLM_API_BASE_URL", "https://api.openai.com/v1/chat/completions")
 
-# ==========================================
-# 4. MICROSERVICE INITIALIZATION
-# ==========================================
-app = FastAPI(
-    title="Prompt Drift Gateway API",
-    description="The centralized microservice for versioning, proxying, and testing LLM prompts.",
-    version="1.0.0"
-)
+app = FastAPI(title="Prompt Drift Gateway API", version="1.0.0")
 
 @app.on_event("startup")
 def on_startup():
-    """Automated infrastructure initialization."""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    # Seed the mock Enterprise Key first
     mock_key_hash = hashlib.sha256("sk-test-enterprise-key".encode('utf-8')).hexdigest()
     if not db.query(OrganizationKey).filter(OrganizationKey.organization_name == "Acme Corp").first():
-        seed_org = OrganizationKey(
-            organization_name="Acme Corp",
-            api_key_hash=mock_key_hash,
-            tier="enterprise"
-        )
-        db.add(seed_org)
+        db.add(OrganizationKey(organization_name="Acme Corp", api_key_hash=mock_key_hash, tier="enterprise"))
 
-    # Seed the mock Prompt, bound strictly to the mock Enterprise Key
     if not db.query(PromptRecord).filter(PromptRecord.prompt_id == "auth-system-onboarding-v2").first():
-        seed_prompt = PromptRecord(
-            organization_name="Acme Corp", # Bounded Context Enforced
+        db.add(PromptRecord(
+            organization_name="Acme Corp",
             prompt_id="auth-system-onboarding-v2",
             template_text="You are a helpful assistant. Greet {user_name}, who is a {role}.",
             version_hash="sha256-mock-hash-123"
-        )
-        db.add(seed_prompt)
-
+        ))
     db.commit()
     db.close()
 
-# ==========================================
-# 4.5. ENTERPRISE OBSERVABILITY (Prometheus)
-# ==========================================
-REQUEST_COUNT = Counter(
-    'gateway_llm_requests_total',
-    'Total LLM requests processed',
-    ['model_used', 'status', 'org_name']
-)
-TOKEN_COUNT = Counter(
-    'gateway_llm_token_usage_total',
-    'Total tokens consumed for billing',
-    ['model_used', 'org_name']
-)
-REQUEST_LATENCY = Histogram(
-    'gateway_llm_request_latency_seconds',
-    'LLM request latency',
-    ['model_used']
-)
+REQUEST_COUNT = Counter('gateway_llm_requests_total', 'Total LLM requests processed', ['model_used', 'status', 'org_name'])
+TOKEN_COUNT = Counter('gateway_llm_token_usage_total', 'Total tokens consumed for billing', ['model_used', 'org_name'])
+REQUEST_LATENCY = Histogram('gateway_llm_request_latency_seconds', 'LLM request latency', ['model_used'])
 
 @app.get("/metrics")
 async def metrics():
-    """Exposes real-time telemetry to the Prometheus scraper."""
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# ==========================================
-# 5. CORE ROUTING & EXECUTION
-# ==========================================
 @app.post("/v1/prompts/execute", response_model=ExecuteResponse)
-async def execute_prompt(
-    request: ExecuteRequest,
-    db: Session = Depends(get_db),
-    organization: OrganizationKey = Depends(get_current_organization)
-):
-    """Executes a versioned prompt securely and proxies to the LLM."""
+async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db), organization: OrganizationKey = Depends(get_current_organization)):
     start_time = time.time()
 
-    # Step A: State Lookup & Strict Tenant Verification
     prompt_record = db.query(PromptRecord).filter(PromptRecord.prompt_id == request.prompt_id).first()
-
     if not prompt_record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Prompt ID '{request.prompt_id}' not found in the gateway database."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Prompt ID '{request.prompt_id}' not found.")
 
     if prompt_record.organization_name != organization.organization_name:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cross-tenant access violation. You do not own this prompt."
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-tenant access violation.")
 
-    # Step B: Template Hydration
     try:
         hydrated_prompt = prompt_record.template_text.format(**request.variables)
     except KeyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required variable for prompt template: {e}"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing variable: {e}")
 
-    # Step C: Model Selection Routing
     active_model = request.model_override if request.model_override else DEFAULT_MODEL
 
-    # Step D: Live Upstream LLM Proxy
-    if not OPENAI_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Gateway misconfiguration: Missing LLM API Key."
-        )
-
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "model": active_model,
-        "messages": [{"role": "user", "content": hydrated_prompt}],
-        "temperature": 0.7
-    }
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+    payload = {"model": active_model, "messages": [{"role": "user", "content": hydrated_prompt}], "temperature": 0.7}
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(LLM_API_BASE_URL, json=payload, headers=headers, timeout=30.0)
+            response = await client.post(LLM_API_BASE_URL, json=payload, headers=headers, timeout=60.0)
             response.raise_for_status()
             llm_data = response.json()
             actual_response_text = llm_data["choices"][0]["message"]["content"]
             actual_tokens = llm_data.get("usage", {}).get("total_tokens", 0)
-
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Upstream LLM Provider Error: {e.response.text}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Upstream LLM Error: {e.response.text}")
     except httpx.RequestError as e:
-        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Failed to connect to Upstream LLM: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=f"Connection Failed: {str(e)}")
 
-    # Step E: Telemetry & Observability Calculation
     latency_seconds = time.time() - start_time
-    latency_ms = int(latency_seconds * 1000)
-
-    # Tag billing metrics with the exact organization name
     REQUEST_COUNT.labels(model_used=active_model, status="success", org_name=organization.organization_name).inc()
     TOKEN_COUNT.labels(model_used=active_model, org_name=organization.organization_name).inc(actual_tokens)
     REQUEST_LATENCY.labels(model_used=active_model).observe(latency_seconds)
 
-    return ExecuteResponse(
-        success=True,
-        executed_prompt=hydrated_prompt,
-        llm_response=actual_response_text,
-        telemetry=Telemetry(token_usage=actual_tokens, latency_ms=latency_ms, model_used=active_model)
-    )
+    return ExecuteResponse(success=True, executed_prompt=hydrated_prompt, llm_response=actual_response_text, telemetry=Telemetry(token_usage=actual_tokens, latency_ms=int(latency_seconds * 1000), model_used=active_model))
 
 @app.post("/v1/prompts", response_model=PromptResponse, status_code=status.HTTP_201_CREATED)
-async def create_prompt(
-    request: CreatePromptRequest,
-    db: Session = Depends(get_db),
-    organization: OrganizationKey = Depends(get_current_organization)
-):
-    """Ingests a new prompt, assigns a cryptographic hash, and bounds it to a tenant immutably."""
-    existing = db.query(PromptRecord).filter(PromptRecord.prompt_id == request.prompt_id).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Prompt ID already exists. Immutable gateway requires unique IDs for new versions (e.g., my-prompt-v2)."
-        )
+async def create_prompt(request: CreatePromptRequest, db: Session = Depends(get_db), organization: OrganizationKey = Depends(get_current_organization)):
+    if db.query(PromptRecord).filter(PromptRecord.prompt_id == request.prompt_id).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Prompt ID already exists.")
 
-    encoded_text = request.template_text.encode('utf-8')
-    version_hash = hashlib.sha256(encoded_text).hexdigest()
-
-    # Bind new prompt to the organization that created it
-    new_prompt = PromptRecord(
-        organization_name=organization.organization_name,
-        prompt_id=request.prompt_id,
-        template_text=request.template_text,
-        version_hash=version_hash
-    )
+    version_hash = hashlib.sha256(request.template_text.encode('utf-8')).hexdigest()
+    new_prompt = PromptRecord(organization_name=organization.organization_name, prompt_id=request.prompt_id, template_text=request.template_text, version_hash=version_hash)
 
     db.add(new_prompt)
     db.commit()
     db.refresh(new_prompt)
 
-    return PromptResponse(
-        prompt_id=new_prompt.prompt_id,
-        version_hash=new_prompt.version_hash,
-        created_at=new_prompt.updated_at
-    )
+    return PromptResponse(prompt_id=new_prompt.prompt_id, version_hash=new_prompt.version_hash, created_at=new_prompt.updated_at)
 
 @app.get("/healthz")
 async def health_check():
-    """Liveness probe for Kubernetes and Dapr sidecars."""
     return {"status": "healthy", "database": "connected"}

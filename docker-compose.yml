@@ -1,13 +1,14 @@
-version: "3.8"
 services:
   gateway:
     build: .
     ports:
       - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
-      - DEFAULT_LLM_MODEL=gpt-4-turbo
+      - DEFAULT_LLM_MODEL=llama3.1
     volumes:
       - ./app:/usr/src/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
@@ -27,9 +28,9 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
-    environment:                                    # <-- NEW BLOCK
-      - GATEWAY_URL=http://gateway:8080             # Internal Docker DNS
-      - ENTERPRISE_API_KEY=sk-test-enterprise-key   # Our Mock Seed Key
+    environment:
+      - GATEWAY_URL=http://gateway:8080
+      - ENTERPRISE_API_KEY=sk-test-enterprise-key
     volumes:
       - ./dashboard:/usr/src/app
       - /usr/src/app/node_modules

@@ -12,8 +12,6 @@ export default function Home() {
   const handleTest = async () => {
     setLoading(true);
     setResult(null);
-
-    // Calls the secure Node.js function over the network
     const res = await runPromptTest(name, role);
     setResult(res);
     setLoading(false);

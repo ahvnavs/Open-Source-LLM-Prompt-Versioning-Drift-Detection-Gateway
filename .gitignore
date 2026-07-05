@@ -5,49 +5,19 @@ __pycache__/
 *.so
 .Python
 env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environments
 venv/
-.env
 .venv
-env.bak/
-venv.bak/
+*.egg-info/
 
-# Environment Variables (CRITICAL: 12-Factor Compliance)
+# Environment Variables
 .env
-.env.local
-.env.development
-.env.production
+.env.*
 
-# Terraform State & Local Configs
-.terraform/
-*.tfstate
-*.tfstate.backup
-*.tfvars
-*.tfvars.json
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-.terraformrc
-terraform.rc
+# Local Database State
+*.db
+*.sqlite
+*.sqlite3
+prompt_state.db
 
 # Docker
 .docker/
@@ -57,18 +27,9 @@ docker-compose.override.yml
 .DS_Store
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Local Database State
-*.db
-*.sqlite
-*.sqlite3
-prompt_state.db
 
 # Next.js & Node Artifacts
 dashboard/node_modules/
 dashboard/.next/
 dashboard/out/
 dashboard/build/
-dashboard/.env*.local
