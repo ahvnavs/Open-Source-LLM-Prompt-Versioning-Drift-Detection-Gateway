@@ -27,8 +27,11 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
+    environment:                                    # <-- NEW BLOCK
+      - GATEWAY_URL=http://gateway:8080             # Internal Docker DNS
+      - ENTERPRISE_API_KEY=sk-test-enterprise-key   # Our Mock Seed Key
     volumes:
       - ./dashboard:/usr/src/app
-      - /usr/src/app/node_modules # Prevents local node_modules from overwriting container
+      - /usr/src/app/node_modules
     depends_on:
       - gateway
