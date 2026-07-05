@@ -27,6 +27,6 @@ export async function runPromptTest(name: string, role: string) {
     return { success: true, data };
 
     } catch (error: any) {
-    return { error: 'Failed to connect to the Prompt Gateway. Ensure Docker containers are running.' };
+    return { error: `Connection Failed: ${error.message}` };
     }
 }

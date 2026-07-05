@@ -1,21 +1,16 @@
-# Project Vision: Open-Source LLM Prompt Versioning & Drift Detection Gateway
+# OMNI & CNEB Architecture Blueprint
 
-## 1. The Core Operational Mandate
-The current software engineering landscape is bound by a fundamental limitation in AI integration: prompts are hardcoded directly into application logic. This results in deeply fragmented codebases, requiring massive organizational inefficiencies and full system redeployments merely to alter AI behavior. Furthermore, silent "prompt drift" occurs when underlying LLM models are updated, causing deterministic failures without automated testing oversight.
+This repository is the physical manifestation of the **Cloud-Native Enterprise Blueprint (CNEB)** and the **OMNI Meta-Compiler Ecosystem** drafted by the Noida engineering team.
 
-This project is the foundational paradigm shift. We are building a centralized, standalone microservice gateway to manage, version, and proxy AI prompts, entirely decoupling stateless business logic from AI execution.
+## The Problem
 
-## 2. Phase 1: Enterprise Alignment & Domain-Driven Design (DDD)
-Following the Cloud-Native Enterprise Blueprint (CNEB), this ecosystem is partitioned using Domain-Driven Design. It is not a single monolithic application; it is a sprawling suite of microservices. 
+Modern AI integration is fragmented. Prompts live in codebases, token burn rates are invisible to finance teams, and developers are locked into expensive public APIs.
 
-### Bounded Context 1: Prompt Ingestion & Versioning Domain
-Before any distributed execution or caching can occur, we must establish the ingress point.
+## The Solution
 
-* **Responsibility:** Ingesting raw text prompts, assigning cryptographic version hashes, and storing them immutably.
-* **API Contract:** RESTful communication using OpenAPI/Swagger specifications.
-* **Execution Engine:** Python, utilizing FastAPI for ultra-fast, asynchronous non-blocking I/O.
-* **Infrastructure:** Deployed as disposable, stateless Docker containers. 
-* **Data Store Isolation:** This domain will strictly adhere to the Database-per-Service pattern, eventually binding to an isolated PostgreSQL instance to guarantee no two domains ever share a physical data store.
+We decouple the "what" (the prompt) from the "how" (the execution).
 
-## 3. The 12-Factor Compliance
-Under no circumstances will environment-specific configurations reside in the application code. All AI API keys, feature flags, and backing service connection strings will be passed exclusively as Linux environment variables. The gateway will rely on the principle of absolute statelessness, allowing infinite horizontal scaling.
+1. **The Gateway (Python/FastAPI):** Acts as the immutable source of truth. Prompts are hashed via SHA-256 to prevent drift.
+2. **The Execution Engine (Docker/Ollama):** AI inference is brought in-house. Llama 3.1 runs securely inside the cluster, ensuring data privacy and zero cost.
+3. **The Control Plane (Next.js):** Provides a visual playground for non-technical stakeholders to test bounded contexts.
+4. **The Telemetry Pipeline (Prometheus):** Every token generated is tracked and tagged by Organization, setting the foundation for future FinOps billing.

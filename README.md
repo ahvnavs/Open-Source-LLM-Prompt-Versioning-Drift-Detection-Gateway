@@ -1,41 +1,20 @@
-# Prompt Drift Gateway 🚀
+# Prompt Drift Gateway & Enterprise Dashboard
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Docker Pulls](https://img.shields.io/docker/pulls/yourdockerhub/prompt-gateway.svg)](#)
+An Open-Source, zero-cost, fully containerized Enterprise SaaS platform for versioning, proxying, and testing LLM prompts.
 
-The **Prompt Drift Gateway** is an open-source, ultra-fast microservice designed to version, proxy, and test LLM prompts. 
+Built strictly on the **Cloud-Native Enterprise Blueprint (CNEB)** and the **OMNI Architecture Framework**.
 
-Stop hardcoding AI prompts into your application logic. Decouple your stateless business logic from your AI execution, prevent silent "prompt drift," and swap underlying LLM models without redeploying your core infrastructure.
+## Features
 
-## 🧠 Why We Built This
-When underlying AI models (like GPT-4, Claude, or Google Gemma) are updated, previously working prompts begin to output malformed data. We built this gateway to act as a centralized, 12-Factor compliant proxy that versions every prompt, tracks token usage, and provides immediate rollback capabilities. 
+- **Strict Multi-Tenancy:** Cryptographically isolated prompts per organization via `X-API-Key`.
+- **Zero-Cost Local AI:** 100% free Llama 3.1 inference embedded directly in the Docker cluster via Ollama. No host dependencies. No OpenAI bills.
+- **12-Factor App Compliance:** Stateless architecture, decoupled infrastructure, and configuration via environment variables.
+- **Enterprise Observability:** Built-in Prometheus telemetry tracking token burn rates, latency, and LLM provider health.
+- **Next.js Dashboard:** Secure, server-action-driven UI for Product Managers to test prompts without touching code.
 
-## ⚖️ Open Source Core vs. Enterprise Cloud
+## Quickstart (The Singular Command)
 
-We operate an **Open-Core** model. The core proxy engine is 100% open-source and free to run on your own infrastructure forever. For teams requiring zero-maintenance scaling, we offer a managed SaaS.
+Because the entire ecosystem is containerized in a monorepo, booting the SaaS takes one command:
 
-### **Community Edition (Open Source)**
-* 🟢 Self-hosted Docker container deployment.
-* 🟢 Cryptographic prompt versioning.
-* 🟢 FastAPI-driven asynchronous proxy routing.
-* 🟢 Local PostgreSQL/Redis state management.
-
-### **Enterprise Cloud SaaS (Managed)**
-* ☁️ **Zero-Ops Infrastructure:** Fully hosted on globally distributed AWS architecture.
-* 👥 **Role-Based Access Control (RBAC):** Allow non-technical Product Managers to A/B test prompts safely.
-* 📊 **Advanced Analytics:** Real-time dashboard for token cost tracking and rate-limiting per API key.
-* 🔒 **Enterprise SLAs:** 99.99% uptime guarantee and priority support.
-
-👉 **[Start your 14-day trial of Enterprise Cloud SaaS here](https://yourdomain.com/signup)**
-
----
-
-## ⚡ Quickstart (Local Sandbox)
-
-To spin up the core engine locally for testing:
-
-1. **Clone the repository:**
-   git clone [https://github.com/yourusername/prompt-drift-gateway.git](https://github.com/yourusername/prompt-drift-gateway.git)
-   cd prompt-drift-gateway
-2. **Deploy via Docker Compose:**
-   docker-compose up --build
+```bash
+docker compose up -d --build

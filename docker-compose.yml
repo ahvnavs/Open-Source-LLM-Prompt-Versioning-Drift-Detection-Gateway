@@ -1,18 +1,37 @@
 services:
+  # 1. THE AI INFERENCE NODE
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+
+  # 2. THE INIT CONTAINER (Auto-Provisions Llama 3.1)
+  ollama-init:
+    image: curlimages/curl:latest
+    depends_on:
+      - ollama
+    # Loops until Ollama is responsive, then commands the cluster to pull the model
+    command: >
+      sh -c "while ! curl -s http://ollama:11434 > /dev/null; do echo 'Waiting for AI Node...'; sleep 3; done; echo 'Initializing Llama 3.1...'; curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"llama3.1\"}'"
+
+  # 3. THE API GATEWAY
   gateway:
     build: .
     ports:
       - "8080:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
       - DEFAULT_LLM_MODEL=llama3.1
     volumes:
       - ./app:/usr/src/app/app
+    depends_on:
+      - ollama
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 
+  # 4. OBSERVABILITY ENGINE
   prometheus:
     image: prom/prometheus:v2.51.0
     ports:
@@ -22,6 +41,7 @@ services:
     depends_on:
       - gateway
 
+  # 5. ENTERPRISE DASHBOARD
   dashboard:
     build:
       context: ./dashboard
@@ -36,3 +56,7 @@ services:
       - /usr/src/app/node_modules
     depends_on:
       - gateway
+
+# Persistent storage for the AI model weights
+volumes:
+  ollama_storage:

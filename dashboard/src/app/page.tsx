@@ -49,7 +49,7 @@ export default function Home() {
           disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
         >
-          {loading ? 'Executing via Gateway...' : 'Execute Prompt (Live LLM Proxy)'}
+          {loading ? 'Executing Llama 3.1 via Gateway...' : 'Execute Prompt (Live LLM Proxy)'}
         </button>
 
         {result?.error && (

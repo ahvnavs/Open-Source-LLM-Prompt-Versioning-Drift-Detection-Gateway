@@ -1,19 +1,13 @@
 # Security Policy
 
-## Supported Versions
-We strictly maintain and provide security updates for the latest major release of the Prompt Drift Gateway. 
+## Enterprise API Boundaries
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+The Gateway enforces a strict **Zero-Trust** policy. All endpoints (excluding Prometheus metrics) require an `X-API-Key` header.
 
-## Reporting a Vulnerability
+- Prompts are bound to the `OrganizationKey` that created them.
+- Cross-tenant execution is mathematically blocked at the database level.
+- The Next.js dashboard uses Server Actions to prevent API keys from exposing to the client's browser.
 
-**DO NOT create a public GitHub issue for security vulnerabilities.**
+## Reporting Vulnerabilities
 
-If you discover a potential vulnerability within the Prompt Drift Gateway core engine, please email the core engineering team directly at **security@yourdomain.com**. 
-
-We operate on a 48-hour triage SLA. You will receive an acknowledgment of your report within 48 hours, and a roadmap for the patch rollout. 
-
-We request that you do not publicly disclose the issue until we have released an official patch and notified our Enterprise SaaS customers.
+If you discover a security vulnerability within Prompt Drift Gateway, please open an issue in the repository. Do not post exploitable code publicly.

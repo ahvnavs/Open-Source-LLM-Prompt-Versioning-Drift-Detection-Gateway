@@ -85,8 +85,8 @@ class PromptResponse(BaseModel):
     version_hash: str
     created_at: datetime.datetime
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-LLM_API_BASE_URL = os.getenv("LLM_API_BASE_URL", "https://api.openai.com/v1/chat/completions")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-local-ollama-dummy-key")
+LLM_API_BASE_URL = os.getenv("LLM_API_BASE_URL", "http://ollama:11434/v1/chat/completions")
 
 app = FastAPI(title="Prompt Drift Gateway API", version="1.0.0")
 
@@ -136,11 +136,11 @@ async def execute_prompt(request: ExecuteRequest, db: Session = Depends(get_db),
     active_model = request.model_override if request.model_override else DEFAULT_MODEL
 
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-    payload = {"model": active_model, "messages": [{"role": "user", "content": hydrated_prompt}], "temperature": 0.7}
+    payload = {"model": active_model, "messages": [{"role": "user", "content": hydrated_prompt}], "temperature": 0.7, "stream": False}
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(LLM_API_BASE_URL, json=payload, headers=headers, timeout=60.0)
+            response = await client.post(LLM_API_BASE_URL, json=payload, headers=headers, timeout=120.0)
             response.raise_for_status()
             llm_data = response.json()
             actual_response_text = llm_data["choices"][0]["message"]["content"]

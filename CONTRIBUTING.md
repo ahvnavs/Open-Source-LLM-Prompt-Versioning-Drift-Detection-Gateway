@@ -1,19 +1,18 @@
 # Contributing to Prompt Drift Gateway
 
-We welcome contributions from the global community. To ensure this ecosystem scales without architectural gridlock, all contributors must strictly adhere to the following engineering standards.
+We welcome contributions to make this the industry standard for Open-Source LLM Gateways (on par with Kubernetes or Trivy).
 
-## 1. Architectural Compliance
-This project strictly adheres to the **12-Factor App methodology**[cite: 1]. 
-* **No Stateful Logic:** All services must remain stateless. State is delegated to attached resources (Redis/PostgreSQL).
-* **Configuration:** Absolutely no environment-specific variables or secrets are allowed in the codebase. Utilize environment variables.
+## Development Flow
 
-## 2. Trunk-Based Development
-We utilize a Trunk-based development model[cite: 1]. 
-* Branch off `main` for all features (`feat/your-feature`) and bug fixes (`bug/your-fix`).
-* Ensure your commits are atomic.
-* All Pull Requests must pass the Continuous Integration (CI) pipeline before merging[cite: 1]. 
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feat/amazing-feature`).
+3. Ensure the entire stack builds cleanly (`docker compose up -d --build`).
+4. Commit your changes (`git commit -m 'feat: add amazing feature'`).
+5. Push to the branch (`git push origin feat/amazing-feature`).
+6. Open a Pull Request.
 
-## 3. Local Parity
-Before submitting a Pull Request, you must verify your changes in the local Docker sandbox. 
-```bash
-docker-compose up --build
+## Rules of the Master Node
+
+- **No Host Dependencies:** Everything must run in Docker.
+- **Strict Typing:** Python code must use Pydantic V2. TypeScript must be fully typed.
+- **Statelessness:** The gateway must remain 100% stateless. State belongs in the database or Redis.

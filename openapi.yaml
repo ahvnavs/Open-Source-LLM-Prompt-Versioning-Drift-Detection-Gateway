@@ -6,8 +6,6 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local Sandbox Environment
-  - url: https://api.yourdomain.com
-    description: Production Enterprise SaaS
 paths:
   /v1/prompts:
     post:
@@ -23,16 +21,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreatePromptRequest"
+              $ref: '#/components/schemas/CreatePromptRequest'
       responses:
-        "201":
+        '201':
           description: Prompt successfully created and hashed.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PromptResponse"
-        "409":
-          description: Conflict. Prompt ID already exists (Immutability violation).
+                $ref: '#/components/schemas/PromptResponse'
+        '409':
+          description: Conflict. Prompt ID already exists.
   /v1/prompts/execute:
     post:
       summary: Execute a versioned prompt
@@ -47,22 +45,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ExecuteRequest"
+              $ref: '#/components/schemas/ExecuteRequest'
       responses:
-        "200":
+        '200':
           description: Successful execution and LLM response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExecuteResponse"
-        "400":
-          description: Bad Request (e.g., missing required variables for the prompt template).
-        "403":
+                $ref: '#/components/schemas/ExecuteResponse'
+        '400':
+          description: Bad Request.
+        '403':
           description: Forbidden (Cross-tenant access violation).
-        "404":
-          description: Prompt ID not found in the remote cache or database.
-        "502":
-          description: Bad Gateway (Upstream LLM provider failure or timeout).
+        '404':
+          description: Prompt ID not found.
+        '502':
+          description: Bad Gateway.
   /metrics:
     get:
       summary: Prometheus Metrics
@@ -70,7 +68,7 @@ paths:
       tags:
         - Observability
       responses:
-        "200":
+        '200':
           description: Raw time-series text data.
           content:
             text/plain:
@@ -121,7 +119,7 @@ components:
             user_name: "Alice"
         model_override:
           type: string
-          example: "gemma-7b-it"
+          example: "llama3.1"
     ExecuteResponse:
       type: object
       properties:
